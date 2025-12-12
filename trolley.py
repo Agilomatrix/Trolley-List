@@ -174,7 +174,7 @@ def generate_trolley_pdf(df, top_logo_stream):
             ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
             ('ALIGN', (0,0), (-1,-1), 'CENTER'),
             ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-            ('FONTSIZE', (0,0), (-1,-1), 9),
+            ('FONTSIZE', (0,0), (-1,-1), 12),
             ('BOTTOMPADDING', (0,0), (-1,0), 6),
             ('TOPPADDING', (0,0), (-1,0), 6),
         ]
