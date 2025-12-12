@@ -18,7 +18,7 @@ from datetime import datetime
 # if you want the high-res version embedded without a file. 
 # For now, this is a placeholder 1x1 pixel image to prevent errors if no file is present.
 # Ideally, place 'agilomatrix_logo.png' in the same folder and the code below will use it.
-AGILO_LOGO_PATH = "agilomatrix_logo.png" 
+AGILO_LOGO_PATH = "Image.png" 
 
 # ==========================================
 # 2. PDF GENERATION LOGIC
