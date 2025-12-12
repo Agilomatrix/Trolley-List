@@ -23,8 +23,8 @@ COLOR_TABLE_ORANGE = colors.HexColor("#f4b084")
 # ReportLab Styles
 styles = getSampleStyleSheet()
 style_normal = styles["Normal"]
-style_center = ParagraphStyle(name='Center', parent=styles['Normal'], alignment=TA_CENTER, fontSize=9)
-style_left = ParagraphStyle(name='Left', parent=styles['Normal'], alignment=TA_LEFT, fontSize=9)
+style_center = ParagraphStyle(name='Center', parent=styles['Normal'], alignment=TA_CENTER, fontSize=14)
+style_left = ParagraphStyle(name='Left', parent=styles['Normal'], alignment=TA_LEFT, fontSize=14)
 style_bold_center = ParagraphStyle(name='BoldCenter', parent=styles['Normal'], fontName='Helvetica-Bold', alignment=TA_CENTER, fontSize=12)
 style_bold_left = ParagraphStyle(name='BoldLeft', parent=styles['Normal'], fontName='Helvetica-Bold', alignment=TA_LEFT, fontSize=12)
 
@@ -58,7 +58,7 @@ def generate_trolley_pdf(df, top_logo_stream):
     # Check if necessary columns exist for Trolley construction, else fallback
     if all(col in df.columns for col in ['RACK', 'RACK NO (1st digit)', 'RACK NO (2nd digit)']):
         df['Calculated_Trolley'] = df.apply(
-            lambda x: f"{clean_str(x['RACK'])}-{clean_str(x['RACK NO (1st digit)'])}{clean_str(x['RACK NO (2nd digit)'])}", 
+            lambda x: f"{clean_str(x['RACK'])} - {clean_str(x['RACK NO (1st digit)'])}{clean_str(x['RACK NO (2nd digit)'])}", 
             axis=1
         )
     elif 'TROLLEY NO' in df.columns:
@@ -195,7 +195,7 @@ def generate_trolley_pdf(df, top_logo_stream):
         
         footer_left_content = [
             [Paragraph(f"<i>Creation Date: {creation_date}</i>", style_left)],
-            [Spacer(1, 0.2*cm)],
+            [Spacer(1, 0.1*cm)],
             [Paragraph("<b>Verified By:</b>", style_left)],
             [Paragraph("Name: ____________________", style_left)],
             [Paragraph("Signature: _________________", style_left)]
@@ -206,7 +206,7 @@ def generate_trolley_pdf(df, top_logo_stream):
         if os.path.exists(FIXED_LOGO_PATH):
             try:
                 # Requirement: width=4.3*cm, height=1.5*cm
-                fixed_logo_img = RLImage(FIXED_LOGO_PATH, width=4.3*cm, height=1.5*cm)
+                fixed_logo_img = RLImage(FIXED_LOGO_PATH, width=3.5*cm, height=2.0*cm)
             except:
                 pass
 
