@@ -23,8 +23,8 @@ COLOR_TABLE_ORANGE = colors.HexColor("#f4b084")
 # ReportLab Styles
 styles = getSampleStyleSheet()
 style_normal = styles["Normal"]
-style_center = ParagraphStyle(name='Center', parent=styles['Normal'], alignment=TA_CENTER, fontSize=14)
-style_left = ParagraphStyle(name='Left', parent=styles['Normal'], alignment=TA_LEFT, fontSize=14)
+style_center = ParagraphStyle(name='Center', parent=styles['Normal'], alignment=TA_CENTER, fontSize=9)
+style_left = ParagraphStyle(name='Left', parent=styles['Normal'], alignment=TA_LEFT, fontSize=9)
 style_bold_center = ParagraphStyle(name='BoldCenter', parent=styles['Normal'], fontName='Helvetica-Bold', alignment=TA_CENTER, fontSize=12)
 style_bold_left = ParagraphStyle(name='BoldLeft', parent=styles['Normal'], fontName='Helvetica-Bold', alignment=TA_LEFT, fontSize=12)
 
