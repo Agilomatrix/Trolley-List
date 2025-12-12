@@ -184,7 +184,7 @@ def generate_trolley_pdf(df, top_logo_stream):
         # Push Footer to bottom (Simple approach: Add a large spacer or just append at end of flow)
         # Note: In SimpleDocTemplate, elements flow. To guarantee bottom position requires a Frame or PageTemplate.
         # For simplicity in this script, we append it after the table.
-        elements.append(Spacer(1, 1*cm))
+        elements.append(Spacer(1, 0.5*cm))
         
         # --- FOOTER SECTION ---
         
@@ -195,7 +195,7 @@ def generate_trolley_pdf(df, top_logo_stream):
         
         footer_left_content = [
             [Paragraph(f"<i>Creation Date: {creation_date}</i>", style_left)],
-            [Spacer(1, 0.5*cm)],
+            [Spacer(1, 0.2*cm)],
             [Paragraph("<b>Verified By:</b>", style_left)],
             [Paragraph("Name: ____________________", style_left)],
             [Paragraph("Signature: _________________", style_left)]
