@@ -206,7 +206,7 @@ def generate_trolley_pdf(df, top_logo_stream):
         if os.path.exists(FIXED_LOGO_PATH):
             try:
                 # Requirement: width=4.3*cm, height=1.5*cm
-                fixed_logo_img = RLImage(FIXED_LOGO_PATH, width=3.5*cm, height=2.5*cm)
+                fixed_logo_img = RLImage(FIXED_LOGO_PATH, width=3.5*cm, height=3*cm)
             except:
                 pass
 
