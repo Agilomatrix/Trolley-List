@@ -1,302 +1,294 @@
 import streamlit as st
 import pandas as pd
+import io
+import os
+from datetime import datetime
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
-from reportlab.lib.units import cm, inch
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image, PageBreak
+from reportlab.lib.units import cm
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak, Image as RLImage
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
-import io
-import base64
-from datetime import datetime
 
 # ==========================================
-# 1. FIXED ASSETS (AGILOMATRIX LOGO)
+# 1. CONFIGURATION & STYLES
 # ==========================================
-# Since you want the logo fixed in the code, we use a Base64 string.
-# NOTE: Replace this long string with the Base64 of your actual Agilomatrix logo 
-# if you want the high-res version embedded without a file. 
-# For now, this is a placeholder 1x1 pixel image to prevent errors if no file is present.
-# Ideally, place 'agilomatrix_logo.png' in the same folder and the code below will use it.
-AGILO_LOGO_PATH = "Image.png" 
+# Fixed logo path (As per your request to fix it in code)
+FIXED_LOGO_PATH = "Image.png"
+
+# Color constants based on your images
+COLOR_HEADER_BLUE = colors.HexColor("#8ea9db")
+COLOR_TABLE_ORANGE = colors.HexColor("#f4b084")
+
+# ReportLab Styles
+styles = getSampleStyleSheet()
+style_normal = styles["Normal"]
+style_center = ParagraphStyle(name='Center', parent=styles['Normal'], alignment=TA_CENTER, fontSize=9)
+style_left = ParagraphStyle(name='Left', parent=styles['Normal'], alignment=TA_LEFT, fontSize=9)
+style_bold_center = ParagraphStyle(name='BoldCenter', parent=styles['Normal'], fontName='Helvetica-Bold', alignment=TA_CENTER, fontSize=12)
+style_bold_left = ParagraphStyle(name='BoldLeft', parent=styles['Normal'], fontName='Helvetica-Bold', alignment=TA_LEFT, fontSize=12)
 
 # ==========================================
 # 2. PDF GENERATION LOGIC
 # ==========================================
+def generate_trolley_pdf(df, top_logo_stream):
+    buffer = io.BytesIO()
+    
+    # Page Setup: A4 Landscape
+    doc = SimpleDocTemplate(
+        buffer, 
+        pagesize=landscape(A4),
+        leftMargin=1*cm, 
+        rightMargin=1*cm, 
+        topMargin=1*cm, 
+        bottomMargin=1*cm
+    )
+    
+    elements = []
+    
+    # --- PRE-PROCESSING DATA ---
+    # 1. Create Trolley No Key: Combine RACK + RACK NO (1st) + RACK NO (2nd) -> e.g., TL-0-1
+    # We clean the data first to ensure no float/nan issues
+    df = df.fillna("")
+    
+    # Helper to clean strings
+    def clean_str(val):
+        return str(val).replace('.0', '') if val != "" else ""
 
-class TrolleyPDF:
-    def __init__(self, buffer, top_logo_byte_stream):
-        self.buffer = buffer
-        self.top_logo_stream = top_logo_byte_stream
-        self.width, self.height = landscape(A4)
-        self.styles = getSampleStyleSheet()
+    # Check if necessary columns exist for Trolley construction, else fallback
+    if all(col in df.columns for col in ['RACK', 'RACK NO (1st digit)', 'RACK NO (2nd digit)']):
+        df['Calculated_Trolley'] = df.apply(
+            lambda x: f"{clean_str(x['RACK'])}-{clean_str(x['RACK NO (1st digit)'])}-{clean_str(x['RACK NO (2nd digit)'])}", 
+            axis=1
+        )
+    elif 'TROLLEY NO' in df.columns:
+         df['Calculated_Trolley'] = df['TROLLEY NO']
+    else:
+         df['Calculated_Trolley'] = "UNKNOWN"
+
+    # Ensure Station Name exists
+    if 'STATION NAME' not in df.columns:
+        df['STATION NAME'] = ""
+
+    # --- GROUPING LOGIC ---
+    # Group by: Station No, Trolley No, Bus Model
+    # (Optional: include Station Name in grouping if it varies)
+    group_cols = ['STATION NO', 'Calculated_Trolley', 'BUS MODEL', 'STATION NAME']
+    # Filter out columns that might not exist to avoid errors
+    actual_group_cols = [c for c in group_cols if c in df.columns]
+    
+    # Sort to keep the PDF orderly
+    df.sort_values(by=actual_group_cols, inplace=True)
+    
+    grouped = df.groupby(actual_group_cols)
+    
+    # Iterate through each group to create a page/section
+    for name, group in grouped:
+        # Unpack grouping keys. Note: 'name' is a tuple if multiple columns
+        # Map values based on the order of actual_group_cols
+        station_no = str(name[0]) if len(actual_group_cols) > 0 else ""
+        trolley_no = str(name[1]) if len(actual_group_cols) > 1 else ""
+        model = str(name[2]) if len(actual_group_cols) > 2 else ""
+        station_name = str(name[3]) if len(actual_group_cols) > 3 else ""
         
-        # Current Page Context (updated during loop)
-        self.current_station_name = ""
-        self.current_model = ""
-        self.current_station_no = ""
-        self.current_trolley_no = ""
-
-    def header_footer(self, canvas, doc):
-        canvas.saveState()
+        # --- HEADER SECTION ---
         
-        # --- TOP RIGHT LOGO (User Uploaded) ---
-        if self.top_logo_stream:
-            try:
-                # Reset pointer
-                self.top_logo_stream.seek(0)
-                # Draw Image: x, y, width, height (Approx adjust to top right)
-                canvas.drawImage(
-                    self.top_logo_stream, 
-                    doc.width + doc.leftMargin - 4*cm, 
-                    doc.height + doc.topMargin - 1.5*cm, 
-                    width=4*cm, height=1.2*cm, 
-                    preserveAspectRatio=True, mask='auto'
-                )
-            except Exception as e:
-                print(f"Error loading top logo: {e}")
-
-        # --- DOCUMENT REF NO ---
-        canvas.setFont('Helvetica-Bold', 10)
-        canvas.drawString(doc.leftMargin, doc.height + doc.topMargin - 0.5*cm, "Document Ref No.:")
-
-        # --- HEADER TABLE (Blue/Orange) ---
-        # We draw this manually using a Table because it needs specific positioning
-        header_data = [
-            [f"STATION NAME: {self.current_station_name}", "", f"STATION NO: {self.current_station_no}", ""],
-            [f"MODEL: {self.current_model}", "", f"TROLLEY NO: {self.current_trolley_no}", ""]
+        # Top Row: "Document Ref No" (Left) and Top Logo (Right)
+        top_logo_img = ""
+        if top_logo_stream:
+            # Create a fresh stream pointer for the image for every page reuse
+            img_io = io.BytesIO(top_logo_stream.getvalue())
+            top_logo_img = RLImage(img_io, width=4*cm, height=1.2*cm)
+            top_logo_img.hAlign = 'RIGHT'
+        
+        header_meta_data = [
+            [Paragraph("<b>Document Ref No.:</b>", style_left), "", top_logo_img]
+        ]
+        t_meta = Table(header_meta_data, colWidths=[6*cm, 16*cm, 5*cm])
+        t_meta.setStyle(TableStyle([
+            ('VALIGN', (0,0), (-1,-1), 'TOP'),
+            ('ALIGN', (-1,0), (-1,0), 'RIGHT'),
+        ]))
+        elements.append(t_meta)
+        elements.append(Spacer(1, 0.2*cm))
+        
+        # Main Blue Header Table
+        # Layout:
+        # Station Name | Station No
+        # Model        | Trolley No
+        
+        blue_header_data = [
+            [Paragraph(f"STATION NAME: {station_name}", style_bold_left), "", 
+             Paragraph(f"STATION NO: {station_no}", style_bold_left), ""],
+            [Paragraph(f"MODEL: {model}", style_bold_left), "", 
+             Paragraph(f"TROLLEY NO: {trolley_no}", style_bold_left), ""]
         ]
         
-        # Widths: The total width should match the page body width
-        total_w = doc.width
-        col_widths = [total_w * 0.35, total_w * 0.15, total_w * 0.35, total_w * 0.15]
-        
-        t = Table(header_data, colWidths=col_widths, rowHeights=[0.8*cm, 0.8*cm])
-        t.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor("#8ea9db")), # Blueish color
-            ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
-            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-            ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, -1), 12),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black),
-            # Merge cells if needed based on the image (Station Name spans 2 cols?)
-            # Based on image: Station Name (col 1), Empty (col 2), Station No (col 3), Empty (col 4)
-            # Adjusting to match image visually:
-            ('SPAN', (0,0), (1,0)), # Station Name spans
-            ('SPAN', (2,0), (3,0)), # Station No spans
-            ('SPAN', (0,1), (1,1)), # Model spans
-            ('SPAN', (2,1), (3,1)), # Trolley No spans
+        # Available width is approx 27.7cm (A4 Land - margins)
+        # We merge cells to get the look: Col 1 spans, Col 3 spans
+        t_header = Table(blue_header_data, colWidths=[8*cm, 4*cm, 8*cm, 7.7*cm], rowHeights=[1*cm, 1*cm])
+        t_header.setStyle(TableStyle([
+            ('GRID', (0,0), (-1,-1), 1, colors.black),
+            ('BACKGROUND', (0,0), (-1,-1), COLOR_HEADER_BLUE),
             ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+            ('SPAN', (0,0), (1,0)), # Span Station Name
+            ('SPAN', (2,0), (3,0)), # Span Station No
+            ('SPAN', (0,1), (1,1)), # Span Model
+            ('SPAN', (2,1), (3,1)), # Span Trolley No
+            ('LEFTPADDING', (0,0), (-1,-1), 6),
+            ('TEXTCOLOR', (0,0), (-1,-1), colors.black),
             ('UPPERCASE', (0,0), (-1,-1), True),
         ]))
+        elements.append(t_header)
         
-        w, h = t.wrap(doc.width, doc.topMargin)
-        t.drawOn(canvas, doc.leftMargin, doc.height + doc.topMargin - 3.0*cm)
-
-        # --- FOOTER ---
-        # Creation Date
-        date_str = datetime.now().strftime("%d-%b-%Y")
-        canvas.setFont('Helvetica-Oblique', 10)
-        canvas.drawString(doc.leftMargin, 2.5*cm, f"Creation Date: {date_str}")
-
-        # Verified By
-        canvas.setFont('Helvetica-Bold', 10)
-        canvas.drawString(doc.leftMargin, 1.8*cm, "Verified By:")
-        canvas.setFont('Helvetica', 10)
-        canvas.drawString(doc.leftMargin, 1.3*cm, "Name:")
-        canvas.drawString(doc.leftMargin, 0.8*cm, "Signature:")
-
-        # Designed By (Bottom Right)
-        canvas.drawRightString(doc.width + doc.leftMargin - 4.5*cm, 1.0*cm, "Designed By:")
+        # --- PART LIST TABLE ---
         
-        # Fixed Agilomatrix Logo
-        # Tries to load from file 'agilomatrix_logo.png' if it exists
-        # Dimensions requested: w=4.3cm, h=1.5cm
-        try:
-            logo_x = doc.width + doc.leftMargin - 4.3*cm
-            logo_y = 0.5*cm # Bottom margin buffer
-            canvas.drawImage(AGILO_LOGO_PATH, logo_x, logo_y, width=4.3*cm, height=1.5*cm, mask='auto', preserveAspectRatio=True)
-        except:
-            # Fallback if image not found on server
-            canvas.setFont('Helvetica-Oblique', 8)
-            canvas.drawString(logo_x, logo_y + 0.5*cm, "[Logo Placeholder]")
-
-        canvas.restoreState()
-
-    def create_pdf(self, grouped_data):
-        doc = SimpleDocTemplate(
-            self.buffer,
-            pagesize=landscape(A4),
-            rightMargin=0.5*inch, leftMargin=0.5*inch,
-            topMargin=1.8*inch, bottomMargin=1.5*inch # Margins accommodate header/footer
-        )
-
-        elements = []
+        # Columns based on your Image 1: 
+        # S.No | PART NO | DESCRIPTION | Qty/Veh | MAX SIZE | QTY / TROLLEY | LOCATION
         
-        # Loop through each group (Station/Trolley combo)
-        for group_key, df_group in grouped_data.items():
+        headers = ["S. No", "PART NO", "DESCRIPTION", "Qty/ Veh", "MAX SIZE", "QTY / TROLLEY", "LOCATION"]
+        
+        data_rows = [headers]
+        
+        # Iterate rows in this group
+        for idx, row in enumerate(group.to_dict('records')):
+            data_rows.append([
+                str(idx + 1),
+                str(row.get('PARTNO', '')),
+                Paragraph(str(row.get('PART DESCRIPTION', '')), style_center),
+                clean_str(row.get('Qty / Veh', '')),
+                clean_str(row.get('Max Size', '')),
+                clean_str(row.get('Qty /Trolley', '')), # Check Excel col name carefully
+                str(row.get('LOCATION', ''))
+            ])
             
-            # Update Context for Header
-            # group_key = (StationNo, TrolleyNo, StationName, Model)
-            self.current_station_no = group_key[0]
-            self.current_trolley_no = group_key[1]
-            self.current_station_name = group_key[2]
-            self.current_model = group_key[3]
+        # Column widths
+        cw = [1.5*cm, 4*cm, 9*cm, 2*cm, 2.5*cm, 3*cm, 5.7*cm]
+        
+        t_data = Table(data_rows, colWidths=cw, repeatRows=1)
+        
+        # Styling
+        tbl_style = [
+            ('GRID', (0,0), (-1,-1), 1, colors.black),
+            ('BACKGROUND', (0,0), (-1,0), COLOR_TABLE_ORANGE), # Orange Header
+            ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+            ('FONTSIZE', (0,0), (-1,-1), 9),
+            ('BOTTOMPADDING', (0,0), (-1,0), 6),
+            ('TOPPADDING', (0,0), (-1,0), 6),
+        ]
+        t_data.setStyle(TableStyle(tbl_style))
+        elements.append(t_data)
+        
+        # Push Footer to bottom (Simple approach: Add a large spacer or just append at end of flow)
+        # Note: In SimpleDocTemplate, elements flow. To guarantee bottom position requires a Frame or PageTemplate.
+        # For simplicity in this script, we append it after the table.
+        elements.append(Spacer(1, 1*cm))
+        
+        # --- FOOTER SECTION ---
+        
+        # Left side: Date, Verified By
+        # Right side: Designed By Logo
+        
+        creation_date = datetime.now().strftime("%d-%b-%Y")
+        
+        footer_left_content = [
+            [Paragraph(f"<i>Creation Date: {creation_date}</i>", style_left)],
+            [Spacer(1, 0.5*cm)],
+            [Paragraph("<b>Verified By:</b>", style_left)],
+            [Paragraph("Name: ____________________", style_left)],
+            [Paragraph("Signature: _________________", style_left)]
+        ]
+        
+        # Load Fixed Logo (Agilomatrix)
+        fixed_logo_img = Paragraph("<b>[Agilomatrix Logo Missing]</b>", style_left)
+        if os.path.exists(FIXED_LOGO_PATH):
+            try:
+                # Requirement: width=4.3*cm, height=1.5*cm
+                fixed_logo_img = RLImage(FIXED_LOGO_PATH, width=4.3*cm, height=1.5*cm)
+            except:
+                pass
 
-            # --- MAIN DATA TABLE ---
-            # Columns based on image: S.No, Part No, Description, Qty/Veh, Max Size, Qty/Trolley, Location
-            
-            table_data = []
-            # Table Header Row (Orange)
-            headers = ['S. No', 'PART NO', 'DESCRIPTION', 'Qty/ Veh', 'MAX SIZE', 'QTY / TROLLEY', 'LOCATION']
-            table_data.append(headers)
+        footer_right_content = [
+            [Paragraph("Designed By:", ParagraphStyle(name='RightAlign', parent=styles['Normal'], alignment=TA_RIGHT))],
+            [fixed_logo_img]
+        ]
+        
+        # Embed these in a table to align Left vs Right
+        t_footer_left = Table(footer_left_content, colWidths=[10*cm])
+        t_footer_left.setStyle(TableStyle([('ALIGN', (0,0), (-1,-1), 'LEFT')]))
+        
+        t_footer_right = Table(footer_right_content, colWidths=[17*cm])
+        t_footer_right.setStyle(TableStyle([
+            ('ALIGN', (0,0), (-1,-1), 'RIGHT'),
+            ('VALIGN', (0,0), (-1,-1), 'BOTTOM')
+        ]))
+        
+        t_footer_main = Table([[t_footer_left, t_footer_right]], colWidths=[10*cm, 17.7*cm])
+        t_footer_main.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'BOTTOM')]))
+        
+        elements.append(t_footer_main)
+        
+        # Page Break after every Trolley List
+        elements.append(PageBreak())
 
-            # Table Rows
-            row_idx = 1
-            for index, row in df_group.iterrows():
-                table_data.append([
-                    str(row_idx),
-                    str(row.get('PARTNO', '')),
-                    str(row.get('PART DESCRIPTION', '')),
-                    str(row.get('Qty / Veh', '')),
-                    str(row.get('Max Size', '')), # Assuming column exists or empty
-                    str(row.get('Qty /Trolley', '')), # Assuming column exists or empty
-                    str(row.get('LOCATION', ''))
-                ])
-                row_idx += 1
-
-            # Column Widths
-            avail_width = doc.width
-            # Adjust these ratios based on content length
-            cw = [avail_width*0.05, avail_width*0.15, avail_width*0.35, avail_width*0.08, avail_width*0.08, avail_width*0.10, avail_width*0.19]
-
-            t = Table(table_data, colWidths=cw, repeatRows=1)
-            
-            # Style the table
-            style = [
-                # Header Row Style (Orange)
-                ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#f4b084")),
-                ('ALIGN', (0,0), (-1,0), 'CENTER'),
-                ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0,0), (-1,0), 10),
-                ('BOTTOMPADDING', (0,0), (-1,0), 6),
-                
-                # Body Style
-                ('GRID', (0,0), (-1,-1), 1, colors.black),
-                ('FONTNAME', (0,1), (-1,-1), 'Helvetica'),
-                ('FONTSIZE', (0,1), (-1,-1), 9),
-                ('ALIGN', (0,1), (0,-1), 'CENTER'), # S.No Center
-                ('ALIGN', (3,1), (5,-1), 'CENTER'), # Qtys Center
-                ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-                ('LEFTPADDING', (0,0), (-1,-1), 3),
-                ('RIGHTPADDING', (0,0), (-1,-1), 3),
-            ]
-            t.setStyle(TableStyle(style))
-            
-            elements.append(t)
-            
-            # Page Break after every group
-            elements.append(PageBreak())
-
-        # Build PDF
-        doc.build(elements, onFirstPage=self.header_footer, onLaterPages=self.header_footer)
+    # Build PDF
+    doc.build(elements)
+    buffer.seek(0)
+    return buffer
 
 # ==========================================
 # 3. STREAMLIT UI
 # ==========================================
-
 st.set_page_config(page_title="Trolley List Generator", layout="wide")
 
 st.title("🏭 Trolley Part List Generator")
 st.markdown("""
-Upload the production Excel sheet. The tool will group parts by **Station**, **Trolley**, and **Model** 
-and generate a formatted PDF.
+This tool extracts data from the production Excel sheet and creates formatted **Trolley Part Lists**.
+Data is grouped by **Station No**, **Trolley No**, and **Model**.
 """)
 
-col1, col2 = st.columns(2)
+col1, col2 = st.columns([1, 1])
 
 with col1:
-    uploaded_file = st.file_uploader("Upload Excel Data", type=["xlsx", "xls"])
+    uploaded_file = st.file_uploader("📂 Upload Excel Data", type=["xlsx", "xls"])
 
 with col2:
-    top_logo_file = st.file_uploader("Upload Company Logo (Top Right)", type=["png", "jpg", "jpeg"])
+    top_logo_file = st.file_uploader("🖼️ Upload Client Logo (Top Right)", type=["png", "jpg", "jpeg"])
 
-# Information about Fixed Logo
-st.info(f"ℹ️ The bottom-right 'Designed By' logo expects a file named `{AGILO_LOGO_PATH}` in the root folder. If running locally, please ensure this file exists.")
+# Warning/Info about the Fixed Logo
+if not os.path.exists(FIXED_LOGO_PATH):
+    st.warning(f"⚠️ The fixed logo file `{FIXED_LOGO_PATH}` was not found in the directory. A text placeholder will be used.")
+else:
+    st.success(f"✅ Fixed logo `{FIXED_LOGO_PATH}` found.")
 
-if uploaded_file is not None and top_logo_file is not None:
+if uploaded_file is not None:
     try:
+        # Read Excel
         df = pd.read_excel(uploaded_file)
         
-        # --- DATA PREPROCESSING ---
-        # 1. Ensure required columns exist (Mapping Excel header to Code logic)
-        # Based on snippet provided: 
-        # Needs: STATION NO, BUS MODEL, RACK, RACK NO (1st digit), RACK NO (2nd digit), PARTNO, PART DESCRIPTION, Qty / Veh, LOCATION
+        st.subheader("Data Preview")
+        st.dataframe(df.head())
         
-        # Check specific column names from your image
-        required_cols = ['STATION NO', 'BUS MODEL', 'PARTNO', 'PART DESCRIPTION', 'Qty / Veh', 'LOCATION']
-        missing = [c for c in required_cols if c not in df.columns]
+        # Required Columns Check based on your images
+        req_cols = ['STATION NO', 'BUS MODEL', 'PARTNO', 'PART DESCRIPTION', 'LOCATION']
+        missing_cols = [c for c in req_cols if c not in df.columns]
         
-        if missing:
-            st.error(f"Missing columns in Excel: {', '.join(missing)}")
+        if missing_cols:
+            st.error(f"❌ The uploaded Excel is missing required columns: {', '.join(missing_cols)}")
         else:
-            # 2. Construct 'TROLLEY NO'
-            # Logic: Combine 'RACK' + 'RACK NO (1st)' + 'RACK NO (2nd)' -> e.g., TL-01
-            # Assuming columns exist based on your screenshot
-            try:
-                # Helper to format numbers with leading zero if needed
-                df['RACK'] = df['RACK'].astype(str)
-                df['R1'] = df['RACK NO (1st digit)'].astype(str)
-                df['R2'] = df['RACK NO (2nd digit)'].astype(str)
-                df['TROLLEY_ID'] = df['RACK'] + "-" + df['R1'] + df['R2']
-            except KeyError:
-                 # Fallback if Rack columns missing, maybe user has a 'Trolley No' column
-                 if 'Trolley No' in df.columns:
-                     df['TROLLEY_ID'] = df['Trolley No']
-                 else:
-                     df['TROLLEY_ID'] = "Unknown"
-            
-            # 3. Handle 'STATION NAME'
-            # The prompt says "Station Name: UnderBody". If this column isn't in Excel, allow manual input or default.
-            if 'STATION NAME' not in df.columns:
-                # Create default based on Station No or Empty
-                df['STATION NAME'] = "" 
-            
-            # 4. Fill NaNs for display
-            df.fillna("", inplace=True)
-
-            # 5. Grouping Logic
-            # "Data will insert from Same Station No, Same Trolley No"
-            # We group by: Station No, Trolley ID, Station Name, Model
-            grouped = {}
-            # Sort to keep order tidy
-            df.sort_values(by=['STATION NO', 'TROLLEY_ID'], inplace=True)
-            
-            groups = df.groupby(['STATION NO', 'TROLLEY_ID', 'STATION NAME', 'BUS MODEL'])
-            
-            for name, group in groups:
-                # name is a tuple: (STATION NO, TROLLEY_ID, STATION NAME, BUS MODEL)
-                grouped[name] = group
-
-            if st.button("Generate PDF"):
-                # Generate PDF
-                buffer = io.BytesIO()
-                
-                # Convert UploadedFile to BytesIO for ReportLab
-                logo_stream = io.BytesIO(top_logo_file.getvalue())
-                
-                generator = TrolleyPDF(buffer, logo_stream)
-                generator.create_pdf(grouped)
-                
-                buffer.seek(0)
-                
-                st.success("PDF Generated Successfully!")
-                st.download_button(
-                    label="⬇️ Download Trolley Part List PDF",
-                    data=buffer,
-                    file_name="Trolley_Part_List.pdf",
-                    mime="application/pdf"
-                )
+            if st.button("Generate Trolley List PDF"):
+                with st.spinner("Processing..."):
+                    pdf_data = generate_trolley_pdf(df, top_logo_file)
+                    
+                    st.success("PDF Generated Successfully!")
+                    st.download_button(
+                        label="⬇️ Download Trolley Part List.pdf",
+                        data=pdf_data,
+                        file_name=f"Trolley_List_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
+                        mime="application/pdf"
+                    )
 
     except Exception as e:
-        st.error(f"An error occurred: {e}")
+        st.error(f"An error occurred during processing: {e}")
