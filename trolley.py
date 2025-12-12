@@ -155,7 +155,7 @@ def generate_trolley_pdf(df, top_logo_stream):
             data_rows.append([
                 str(idx + 1),
                 str(row.get('PARTNO', '')),
-                Paragraph(str(row.get('PART DESCRIPTION', '')), style_center),
+                Paragraph(str(row.get('PART DESCRIPTION', '')), style_left),
                 clean_str(row.get('Qty / Veh', '')),
                 clean_str(row.get('Max Size', '')),
                 clean_str(row.get('Qty /Trolley', '')), # Check Excel col name carefully
