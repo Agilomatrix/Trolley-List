@@ -58,7 +58,7 @@ def generate_trolley_pdf(df, top_logo_stream):
     # Check if necessary columns exist for Trolley construction, else fallback
     if all(col in df.columns for col in ['RACK', 'RACK NO (1st digit)', 'RACK NO (2nd digit)']):
         df['Calculated_Trolley'] = df.apply(
-            lambda x: f"{clean_str(x['RACK'])}-{clean_str(x['RACK NO (1st digit)'])}-{clean_str(x['RACK NO (2nd digit)'])}", 
+            lambda x: f"{clean_str(x['RACK'])}-{clean_str(x['RACK NO (1st digit)'])}{clean_str(x['RACK NO (2nd digit)'])}", 
             axis=1
         )
     elif 'TROLLEY NO' in df.columns:
