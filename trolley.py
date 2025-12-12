@@ -163,7 +163,7 @@ def generate_trolley_pdf(df, top_logo_stream):
             ])
             
         # Column widths
-        cw = [1.5*cm, 4*cm, 9*cm, 2*cm, 2.5*cm, 3*cm, 5.7*cm]
+        cw = [1.5*cm, 4*cm, 9*cm, 2*cm, 2.5*cm, 3.2*cm, 5.5*cm]
         
         t_data = Table(data_rows, colWidths=cw, repeatRows=1)
         
