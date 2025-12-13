@@ -98,7 +98,7 @@ def generate_trolley_pdf(df, top_logo_stream):
         if top_logo_stream:
             # Create a fresh stream pointer for the image for every page reuse
             img_io = io.BytesIO(top_logo_stream.getvalue())
-            top_logo_img = RLImage(img_io, width=4*cm, height=1.2*cm)
+            top_logo_img = RLImage(img_io, width=3*cm, height=2.8*cm)
             top_logo_img.hAlign = 'RIGHT'
         
         header_meta_data = [
