@@ -28,6 +28,9 @@ style_left = ParagraphStyle(name='Left', parent=styles['Normal'], alignment=TA_L
 style_bold_center = ParagraphStyle(name='BoldCenter', parent=styles['Normal'], fontName='Helvetica-Bold', alignment=TA_CENTER, fontSize=14)
 style_bold_left = ParagraphStyle(name='BoldLeft', parent=styles['Normal'], fontName='Helvetica-Bold', alignment=TA_LEFT, fontSize=16)
 
+# --- DEFINING THE MISSING STYLE TO FIX YOUR ERROR ---
+rl_cell_left_style = style_left  # Mapping your requested style name to the existing style
+
 # ==========================================
 # 2. PDF GENERATION LOGIC
 # ==========================================
@@ -165,51 +168,46 @@ def generate_trolley_pdf(df, top_logo_stream, logo_w, logo_h):
         elements.append(t_data)
         elements.append(Spacer(1, 0.5*cm))
         
-        # --- FOOTER SECTION ---
-        creation_date = datetime.now().strftime("%d-%b-%Y")
+        # --- FOOTER SECTION (EXACTLY AS REQUESTED) ---
         
-        # FIXED: Using style_left instead of the undefined rl_cell_left_style
+        # 1. Prepare variables needed for your snippet
+        fixed_logo_path = FIXED_LOGO_PATH
+        today_date = datetime.now().strftime("%d-%b-%Y")
         
-        # Load Fixed Logo (Agilomatrix) with check
-        fixed_logo_img = Paragraph("<b>[Agilomatrix Logo Missing]</b>", style_left)
-        if os.path.exists(FIXED_LOGO_PATH):
+        # 2. Your provided snippet logic
+        fixed_logo_img = Paragraph("<b>[Agilomatrix Logo Missing]</b>", rl_cell_left_style)
+        if os.path.exists(fixed_logo_path):
             try:
-                 fixed_logo_img = RLImage(FIXED_LOGO_PATH, width=4*cm, height=1.2*cm)
+                 fixed_logo_img = RLImage(fixed_logo_path, width=4.3*cm, height=1.5*cm)
             except:
                  pass
         
         left_content = [
-            [Paragraph(f"<i>Creation Date: {creation_date}</i>", style_left)],
-            [Spacer(1, 0.2*cm)],
-            [Paragraph("<b>Verified by:</b>", style_left)],
-            [Paragraph("Name: ___________________", style_left)],
-            [Paragraph("Signature: _______________", style_left)]
+            Paragraph(f"<i>Creation Date: {today_date}</i>", rl_cell_left_style),
+            Spacer(1, 0.2*cm),
+            Paragraph("<b>Verified by:</b>", ParagraphStyle('BoldFooter', fontName='Helvetica-Bold', fontSize=10, alignment=TA_LEFT)),
+            Paragraph("Name: ___________________", rl_cell_left_style),
+            Paragraph("Signature: _______________", rl_cell_left_style)
         ]
 
-        # Use Table for Left content to ensure alignment inside the main footer table
-        t_left_inner = Table(left_content, colWidths=[10*cm])
-        t_left_inner.setStyle(TableStyle([('ALIGN', (0,0), (-1,-1), 'LEFT')]))
-
-        designed_by_text = Paragraph("Designed by:", ParagraphStyle('DesignedBy', parent=styles['Normal'], fontSize=10, alignment=TA_RIGHT))
+        designed_by_text = Paragraph("Designed by:", ParagraphStyle('DesignedBy', fontName='Helvetica', fontSize=10, alignment=TA_RIGHT))
         
-        right_content = [
-            [designed_by_text],
-            [fixed_logo_img]
-        ]
-        t_right_inner = Table(right_content, colWidths=[7*cm])
-        t_right_inner.setStyle(TableStyle([
+        right_inner_table = Table([[designed_by_text, fixed_logo_img]], colWidths=[3*cm, 4.5*cm])
+        right_inner_table.setStyle(TableStyle([
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
             ('ALIGN', (0,0), (-1,-1), 'RIGHT'),
-            ('VALIGN', (0,0), (-1,-1), 'BOTTOM')
+            ('LEFTPADDING', (0,0), (-1,-1), 0),
+            ('RIGHTPADDING', (0,0), (-1,-1), 0),
         ]))
 
-        t_footer_main = Table([[t_left_inner, t_right_inner]], colWidths=[20*cm, 7.7*cm])
-        t_footer_main.setStyle(TableStyle([
+        footer_table = Table([[left_content, right_inner_table]], colWidths=[20*cm, 7.7*cm])
+        footer_table.setStyle(TableStyle([
             ('VALIGN', (0,0), (-1,-1), 'BOTTOM'),
             ('LEFTPADDING', (0,0), (-1,-1), 0),
             ('RIGHTPADDING', (0,0), (-1,-1), 0),
         ]))
         
-        elements.append(t_footer_main)
+        elements.append(footer_table)
         elements.append(PageBreak())
 
     doc.build(elements)
