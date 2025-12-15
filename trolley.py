@@ -177,31 +177,38 @@ def generate_trolley_pdf(df, top_logo_stream, logo_w, logo_h):
         ]
         
         # Load Fixed Logo (Agilomatrix) with check
-        fixed_logo_img = Paragraph("<b>[Agilomatrix Logo Missing]</b>", style_left)
-        if os.path.exists(FIXED_LOGO_PATH):
+        fixed_logo_img = Paragraph("<b>[Agilomatrix Logo Missing]</b>", rl_cell_left_style)
+        if os.path.exists(fixed_logo_path):
             try:
-                fixed_logo_img = RLImage(FIXED_LOGO_PATH, width=4*cm, height=1.2*cm)
+                 fixed_logo_img = RLImage(fixed_logo_path, width=4.3*cm, height=1.5*cm)
             except:
-                pass
-
-        footer_right_content = [
-            [Paragraph("Designed By:", ParagraphStyle(name='RightAlign', parent=styles['Normal'], alignment=TA_RIGHT))],
-            [fixed_logo_img]
+                 pass
+        
+        left_content = [
+            Paragraph(f"<i>Creation Date: {today_date}</i>", rl_cell_left_style),
+            Spacer(1, 0.2*cm),
+            Paragraph("<b>Verified by:</b>", ParagraphStyle('BoldFooter', fontName='Helvetica-Bold', fontSize=10, alignment=TA_LEFT)),
+            Paragraph("Name: ___________________", rl_cell_left_style),
+            Paragraph("Signature: _______________", rl_cell_left_style)
         ]
-        
-        t_footer_left = Table(footer_left_content, colWidths=[10*cm])
-        t_footer_left.setStyle(TableStyle([('ALIGN', (0,0), (-1,-1), 'LEFT')]))
-        
-        t_footer_right = Table(footer_right_content, colWidths=[17*cm])
-        t_footer_right.setStyle(TableStyle([
+
+        designed_by_text = Paragraph("Designed by:", ParagraphStyle('DesignedBy', fontName='Helvetica', fontSize=10, alignment=TA_RIGHT))
+        right_inner_table = Table([[designed_by_text, fixed_logo_img]], colWidths=[3*cm, 4.5*cm])
+        right_inner_table.setStyle(TableStyle([
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
             ('ALIGN', (0,0), (-1,-1), 'RIGHT'),
-            ('VALIGN', (0,0), (-1,-1), 'BOTTOM')
+            ('LEFTPADDING', (0,0), (-1,-1), 0),
+            ('RIGHTPADDING', (0,0), (-1,-1), 0),
+        ]))
+
+        footer_table = Table([[left_content, right_inner_table]], colWidths=[20*cm, 7.7*cm])
+        footer_table.setStyle(TableStyle([
+            ('VALIGN', (0,0), (-1,-1), 'BOTTOM'),
+            ('LEFTPADDING', (0,0), (-1,-1), 0),
+            ('RIGHTPADDING', (0,0), (-1,-1), 0),
         ]))
         
-        t_footer_main = Table([[t_footer_left, t_footer_right]], colWidths=[10*cm, 17.7*cm])
-        t_footer_main.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'BOTTOM')]))
-        
-        elements.append(t_footer_main)
+        elements.append(footer_table)
         elements.append(PageBreak())
 
     doc.build(elements)
