@@ -31,7 +31,7 @@ style_bold_left = ParagraphStyle(name='BoldLeft', parent=styles['Normal'], fontN
 # ==========================================
 # 2. PDF GENERATION LOGIC
 # ==========================================
-def generate_trolley_pdf(df, top_logo_stream):
+def generate_trolley_pdf(df, top_logo_stream, logo_w, logo_h):
     buffer = io.BytesIO()
     
     # Page Setup: A4 Landscape
@@ -84,9 +84,14 @@ def generate_trolley_pdf(df, top_logo_stream):
         # --- TOP HEADER (Ref No & Logo) ---
         top_logo_img = ""
         if top_logo_stream:
-            img_io = io.BytesIO(top_logo_stream.getvalue())
-            top_logo_img = RLImage(img_io, width=3*cm, height=2.8*cm)
-            top_logo_img.hAlign = 'RIGHT'
+            try:
+                # Create fresh stream for every loop to avoid closed file errors
+                img_io = io.BytesIO(top_logo_stream.getvalue())
+                # Use User Defined Dimensions (logo_w, logo_h)
+                top_logo_img = RLImage(img_io, width=logo_w*cm, height=logo_h*cm)
+                top_logo_img.hAlign = 'RIGHT'
+            except Exception:
+                pass
         
         header_meta_data = [
             [Paragraph("<b>Document Ref No.:</b>", style_left), "", top_logo_img]
@@ -99,10 +104,7 @@ def generate_trolley_pdf(df, top_logo_stream):
         elements.append(t_meta)
         elements.append(Spacer(1, 0.2*cm))
         
-        # --- BLUE HEADER TABLE (UPDATED) ---
-        # Layout: 4 Distinct Cells per row
-        # Row 1: Header | Value | Header | Value
-        
+        # --- BLUE HEADER TABLE ---
         blue_header_data = [
             [
                 Paragraph("<b>STATION NAME:</b>", style_bold_left), 
@@ -118,18 +120,13 @@ def generate_trolley_pdf(df, top_logo_stream):
             ]
         ]
         
-        # Defined Widths for 4 columns (Total ~27.7cm)
-        # Col 1 (Labels): 4.5cm, Col 2 (Values): 9.5cm
-        # Col 3 (Labels): 4.2cm, Col 4 (Values): 9.5cm
         header_col_widths = [5*cm, 9.8*cm, 4.8*cm, 8.0*cm]
-        
         t_header = Table(blue_header_data, colWidths=header_col_widths, rowHeights=[1*cm, 1*cm])
         
         t_header.setStyle(TableStyle([
             ('GRID', (0,0), (-1,-1), 1, colors.black),
             ('BACKGROUND', (0,0), (-1,-1), COLOR_HEADER_BLUE),
             ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-            # No SPAN commands needed anymore
             ('LEFTPADDING', (0,0), (-1,-1), 6),
             ('TEXTCOLOR', (0,0), (-1,-1), colors.black),
             ('UPPERCASE', (0,0), (-1,-1), True),
@@ -179,6 +176,7 @@ def generate_trolley_pdf(df, top_logo_stream):
             [Paragraph("Signature: _________________", style_left)]
         ]
         
+        # Load Fixed Logo (Agilomatrix) with check
         fixed_logo_img = Paragraph("<b>[Agilomatrix Logo Missing]</b>", style_left)
         if os.path.exists(FIXED_LOGO_PATH):
             try:
@@ -228,18 +226,31 @@ with col1:
 
 with col2:
     top_logo_file = st.file_uploader("🖼️ Upload Client Logo (Top Right)", type=["png", "jpg", "jpeg"])
+    
+    # --- ADDED: Inputs for Top Logo Dimensions ---
+    top_logo_w = 3.0 # Default
+    top_logo_h = 2.8 # Default
+    if top_logo_file:
+        st.caption("Define Logo Dimensions (cm):")
+        c_w, c_h = st.columns(2)
+        top_logo_w = c_w.number_input("Width (cm)", min_value=0.5, max_value=10.0, value=3.0, step=0.1)
+        top_logo_h = c_h.number_input("Height (cm)", min_value=0.5, max_value=5.0, value=2.8, step=0.1)
 
+# Warning/Info about the Fixed Logo
 if not os.path.exists(FIXED_LOGO_PATH):
-    st.warning(f"⚠️ The fixed logo file `{FIXED_LOGO_PATH}` was not found. A text placeholder will be used.")
+    st.warning(f"⚠️ The fixed logo file `{FIXED_LOGO_PATH}` was not found in the directory. A text placeholder will be used.")
 else:
     st.success(f"✅ Fixed logo `{FIXED_LOGO_PATH}` found.")
 
 if uploaded_file is not None:
     try:
+        # Read Excel
         df = pd.read_excel(uploaded_file)
+        
         st.subheader("Data Preview")
         st.dataframe(df.head())
         
+        # Required Columns Check based on your images
         req_cols = ['STATION NO', 'BUS MODEL', 'PARTNO', 'PART DESCRIPTION', 'LOCATION']
         missing_cols = [c for c in req_cols if c not in df.columns]
         
@@ -248,7 +259,9 @@ if uploaded_file is not None:
         else:
             if st.button("Generate Trolley List PDF"):
                 with st.spinner("Processing..."):
-                    pdf_data = generate_trolley_pdf(df, top_logo_file)
+                    # Pass the user defined width and height to the function
+                    pdf_data = generate_trolley_pdf(df, top_logo_file, top_logo_w, top_logo_h)
+                    
                     st.success("PDF Generated Successfully!")
                     st.download_button(
                         label="⬇️ Download Trolley Part List.pdf",
