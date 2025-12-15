@@ -120,7 +120,7 @@ def generate_trolley_pdf(df, top_logo_stream, logo_w, logo_h):
             ]
         ]
         
-        header_col_widths = [5*cm, 9.8*cm, 4.8*cm, 8.0*cm]
+        header_col_widths = [5*cm, 10*cm, 4.8*cm, 8*cm]
         t_header = Table(blue_header_data, colWidths=header_col_widths, rowHeights=[1*cm, 1*cm])
         
         t_header.setStyle(TableStyle([
