@@ -121,7 +121,7 @@ def generate_trolley_pdf(df, top_logo_stream):
         # Defined Widths for 4 columns (Total ~27.7cm)
         # Col 1 (Labels): 4.5cm, Col 2 (Values): 9.5cm
         # Col 3 (Labels): 4.2cm, Col 4 (Values): 9.5cm
-        header_col_widths = [4.5*cm, 9.5*cm, 4.2*cm, 9.5*cm]
+        header_col_widths = [4.8*cm, 9.5*cm, 4.8*cm, 8.6*cm]
         
         t_header = Table(blue_header_data, colWidths=header_col_widths, rowHeights=[1*cm, 1*cm])
         
