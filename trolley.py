@@ -107,15 +107,15 @@ def generate_trolley_pdf(df, top_logo_stream, logo_w, logo_h):
         # --- BLUE HEADER TABLE ---
         blue_header_data = [
             [
-                Paragraph("<b>STATION NAME:</b>", style_bold_left), 
+                Paragraph("<b>STATION NAME</b>", style_bold_left), 
                 Paragraph(station_name, style_bold_left),
-                Paragraph("<b>STATION NO:</b>", style_bold_left), 
+                Paragraph("<b>STATION NO</b>", style_bold_left), 
                 Paragraph(station_no, style_bold_left)
             ],
             [
-                Paragraph("<b>MODEL:</b>", style_bold_left), 
+                Paragraph("<b>MODEL</b>", style_bold_left), 
                 Paragraph(model, style_bold_left),
-                Paragraph("<b>TROLLEY NO:</b>", style_bold_left), 
+                Paragraph("<b>TROLLEY NO</b>", style_bold_left), 
                 Paragraph(trolley_no, style_bold_left)
             ]
         ]
